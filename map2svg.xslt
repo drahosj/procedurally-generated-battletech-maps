@@ -17,7 +17,7 @@
 
 
     <xsl:template match="/map:map">
-        <svg:svg height="1800" width="1600">
+        <svg:svg height="22in" width="18in">
             <xsl:apply-templates/>
         </svg:svg>
     </xsl:template>
@@ -124,12 +124,12 @@
             </svg:text>
         </xsl:if>
 
-        <svg:text x="{$x1 + $side div 2}" y="{$y2 - $apothem*0.1}" font-size="{$side div 6}" text-anchor="middle">
+        <svg:text x="{$x1 + $side div 2}" y="{$y0 + $apothem*0.2}" font-size="{$side div 6}" text-anchor="middle">
             <xsl:value-of select="concat(format-number(@column, '00'), format-number(@row, '00'))"/>
         </svg:text>
 
         <xsl:if test="map:woods">
-            <svg:text x="{$x1 + $side div 2}" y="{$y1 - $apothem*0.6}" font-size="{$side div 3}" text-anchor="middle">
+            <svg:text x="{$x1 + $side div 2}" y="{$y1 - $apothem*0.4}" font-size="{$side div 3}" text-anchor="middle">
                 <xsl:value-of select="translate(map:woods, 'lighteavy', 'LIGHTEAVY')"/>
             </svg:text>
         </xsl:if>

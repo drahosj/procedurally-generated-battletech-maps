@@ -13,6 +13,8 @@ class Hex
   attr_accessor :has_road
   attr_accessor :road_type
   attr_accessor :road_angle
+  attr_accessor :has_woods
+  attr_accessor :woods_type
 
   def odd?
     return x % 2 == 1? true : false
@@ -97,6 +99,10 @@ class Hex
     return name
   end
 
+  def clear?
+    return (!has_woods and !has_road)
+  end
+
   def hilliness v=Set[]
     if v.include?(self)
       return 0
@@ -151,6 +157,36 @@ class Hex
       end
     end
   end
+
+  def make_woods(rng)
+    n_heavy = [0,0,0,1,1,2].sample(random:rng)
+    n_light = [1,2,2,2,2,3,3,3].sample(random:rng)
+    if n_heavy > 0 and n_light > 1
+      n_light -= 1
+    end
+
+    if n_heavy > 0
+      n_heavy -= 1
+      has_woods = true
+      woods_type = 2
+    end
+
+    n_heavy.times do 
+      h = in_direction(rng.rand(6))
+      if !h.nil? and h.clear?
+        h.has_woods = true
+        h.woods_type = 2
+      end
+    end
+
+    n_light.times do
+      h = in_direction(rng.rand(6))
+      if !h.nil? and h.clear?
+        h.has_woods = true
+        h.woods_type = 1
+      end
+    end
+  end
 end
 
 def simple_dump(map, filename)
@@ -171,6 +207,14 @@ def simple_dump(map, filename)
           type = "straight"
         end
         f.write('<path orientation="%d">%s</path>' % [h.road_angle, type])
+      end
+      if h.has_woods
+        if h.woods_type == 1
+          type = "light"
+        elsif h.woods_type == 2
+          type = "heavy"
+        end
+        f.write("<woods>#{type}</woods>\n")
       end
       f.write("</hex>\n");
     end
@@ -305,5 +349,11 @@ if (rng.rand(2) == 0)
   end
 end
 
+(rng.rand(10) + 8).times do 
+  x = rng.rand(MAX_X) + 1
+  y = rng.rand(MAX_Y) + 1
+
+  map[x][y].make_woods(rng)
+end
 
 simple_dump(map, "map.xml")
