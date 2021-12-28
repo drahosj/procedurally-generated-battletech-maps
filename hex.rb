@@ -16,6 +16,10 @@ class Hex
   attr_accessor :has_woods
   attr_accessor :woods_type
 
+  def inspect
+    return "#<Hex: (#{object_id}) #{to_s}>"
+  end
+
   def odd?
     return x % 2 == 1? true : false
   end
@@ -82,6 +86,15 @@ class Hex
         return map[x-1][y]
       end
     end
+  end
+
+  def direction_to(n)
+    6.times do |d|
+      if in_direction(d) == n
+        return d
+      end
+    end
+    return nil
   end
 
   def initialize map, x, y
@@ -258,95 +271,106 @@ end
   hex.make_hill(20 + rng.rand(40), rng)
 end
 
-if (rng.rand(2) == 0) 
-  puts("This one will have a road")
-
-  up = rng.rand(2) == 0 ? true : false
-  y = map[1][1..MAX_Y].filter{|h|h.level == 0}.sample(random:rng).y
-
-  x = 1
-  while (x <= MAX_X)
-    swap = [false, false, false, true].sample(random:rng)
-
-    hex = map[x][y]
-
-    if up
-      if swap
-        nd = 2
-      else
-        nd = 1
+def smooth(h, rng)
+  steep_down = h.neighbors.filter{|n| n.level < (h.level - 1)}
+  if steep_down.size > 3
+    steep_down.each do |d|
+      if rng.rand(3) == 0
+        d.level = d.level + 1
+        smooth(d, rng)
       end
-    else
-      if swap
-        nd = 1
-      else
-        nd = 2
-      end
-    end
-
-
-    nh = hex.in_direction(nd)
-    if !nh.nil? and (nh.level - hex.level).abs > 1
-      puts("In hex #{hex}")
-      puts("Looking at hex #{nh}")
-      puts("Trying direction #{nd} but it has level #{nh.level} curr #{hex.level}")
-      puts("Swapping")
-      swap = !swap
-    end
-
-    if up
-      if swap
-        nd = 2
-      else
-        nd = 1
-      end
-    else
-      if swap
-        nd = 1
-      else
-        nd = 2
-      end
-    end
-
-    nh = hex.in_direction(nd)
-    if !nh.nil? and (nh.level - hex.level).abs > 1
-      puts("Direction #{nd} still has level #{nh.level} curr #{hex.level}")
-      puts("ending road")
-      break
-    end
-
-
-    if up
-      road_angle = 1
-      if !swap
-        road_type = 0
-        nh = hex.in_direction(1)
-      else
-        road_type = 1
-        up = false
-        nh = hex.in_direction(2)
-      end
-    else
-      road_angle = 2
-      if !swap
-        road_type = 0
-        nh = hex.in_direction(2)
-      else road_type = -1
-        up = true
-        nh = hex.in_direction(1)
-      end
-    end
-    hex.has_road = true
-    hex.road_type = road_type
-    hex.road_angle = road_angle
-
-    if nh.nil?
-      break
-    else
-      x += 1
-      y = nh.y
     end
   end
+end
+
+def smooth_up(h, rng)
+  tall_neighbors = h.neighbors.filter{|n| n.level > (h.level + 1)}
+  if tall_neighbors.size > 1
+    f = h.neighbors.map{|n| n.level - h.level}.filter(&:positive?).sum
+    unless rng.rand(f) == 0
+      h.level = h.level + 1
+    end
+  end
+end
+
+def pathfind(s, e, o)
+  visited = Set.new
+  dist = Hash.new
+
+  dist[s] = 0
+  prev = Hash.new
+
+  while (!(c = get_next(dist, visited)).nil?) and !visited.include?(e)
+    p = prev[c]
+    if p.nil?
+      orientation = o
+    else
+      orientation = c.direction_to(p)
+    end
+
+    n = Set.new
+    n << c.in_direction((orientation + 2) % 6)
+    n << c.in_direction((orientation + 3) % 6)
+    n << c.in_direction((orientation + 4) % 6)
+
+    n = n - visited
+    n.delete nil 
+
+    n.each do |x|
+      if (x.level - c.level).abs > 1
+        cost = 5000
+      elsif (x.level - c.level).abs > 0
+        cost = 100
+      else
+        cost = 50
+      end
+
+      if (n != c.in_direction((orientation + 3) % 6))
+        cost += 20
+      end
+
+      if (x.has_woods)
+        cost += 10
+      end
+
+      next if cost > 1000
+
+      if dist[x].nil? 
+        dist[x] = 0
+      end
+      dist[x] = dist[c] + cost
+      prev[x] = c
+    end
+    visited << c
+  end
+
+  if dist[e].nil?
+    return nil
+  end
+
+  path = []
+
+  while !(c = prev[e]).nil?
+    path << e
+    e = c
+  end
+
+  path << s
+  return path.reverse
+end
+
+def get_next(dist, visited)
+  d = dist.filter{|k,v| !visited.include? k}.keys
+  return nil if d.empty?
+
+  n = d.first
+  d.each do |x|
+    if dist[x] < dist[n]
+      n = x
+    end
+  end
+
+  return n.nil? ? nil : n
 end
 
 (rng.rand(10) + 8).times do 
@@ -355,5 +379,62 @@ end
 
   map[x][y].make_woods(rng)
 end
+
+map[1..MAX_X].each do |c|
+  c[1..MAX_Y].each do |h|
+    smooth(h, rng)
+  end
+end
+
+map[1..MAX_X].each do |c|
+  c[1..MAX_Y].each do |h|
+    smooth_up(h, rng)
+  end
+end
+
+s = map[1][9]
+e = map[15][9]
+path = pathfind(s, e, 5)
+p path
+
+
+unless path.nil?
+  back = Hash.new
+  foreward = Hash.new
+  path.size.times do |i|
+    if i == 0
+      back[path[i]] = 5
+    else
+      back[path[i]] = path[i].direction_to(path[i-1])
+    end
+
+    if i == (path.size - 1)
+      foreward[path[i]] = 2
+    else
+      foreward[path[i]] = path[i].direction_to(path[i+1])
+    end
+  end
+
+  path.each do |h|
+    h.has_road = true
+    h.road_angle = (back[h] + 3) % 6
+
+    a = foreward[h] - back[h]
+    if a.abs == 3 
+      h.road_type = 0
+    elsif a == 2 or a == -4
+      h.road_type = -1
+    elsif a == 4 or a == -2
+      h.road_type = 1
+    else
+      puts "PROBLEM"
+      p h
+      p "f:#{foreward[h]} b#{back[h]}"
+      h.road_type = 0
+    end
+  end
+end
+
+
 
 simple_dump(map, "map.xml")
